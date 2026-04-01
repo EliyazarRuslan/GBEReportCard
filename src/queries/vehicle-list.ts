@@ -38,6 +38,7 @@ export async function getWarrantiedVehicles(): Promise<WarrantiedVehicle[]> {
       WHERE ce.siteid = @siteId
         AND ag.status = 'ACTIVE'
         AND ag.startdate >= DATEADD(YEAR, -5, GETDATE())
+        AND ag.agreement NOT LIKE '%CCM%'
     )
     SELECT assetnum, vehicleNo, description, serialnum, pluspcustomer, customerName, agreement, warrantyStart, warrantyEnd
     FROM ranked
@@ -65,7 +66,7 @@ export async function getVehicleByAssetNum(assetnum: string): Promise<Warrantied
       ag.enddate AS warrantyEnd
     FROM asset a
     LEFT JOIN caentitle ce ON ce.gb_vehiclenum = a.assetnum AND ce.siteid = a.siteid
-    LEFT JOIN pluspagreement ag ON ag.agreement = ce.agreement AND ag.orgid = ce.orgid AND ag.status = 'ACTIVE'
+    LEFT JOIN pluspagreement ag ON ag.agreement = ce.agreement AND ag.orgid = ce.orgid AND ag.status = 'ACTIVE' AND ag.agreement NOT LIKE '%CCM%'
     LEFT JOIN pluspcustomer c ON c.customer = a.pluspcustomer
     WHERE a.siteid = @siteId
       AND a.assetnum = @assetnum
@@ -92,6 +93,7 @@ export async function getFleetCustomers(): Promise<{ pluspcustomer: string; cust
     WHERE ce.siteid = @siteId
       AND ag.status = 'ACTIVE'
       AND ag.startdate >= DATEADD(YEAR, -5, GETDATE())
+      AND ag.agreement NOT LIKE '%CCM%'
     GROUP BY a.pluspcustomer, c.name
     HAVING COUNT(DISTINCT a.assetnum) > 1
     ORDER BY vehicleCount DESC
