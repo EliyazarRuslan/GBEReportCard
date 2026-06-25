@@ -20,84 +20,89 @@ export interface PMDetail {
   isOverdue: boolean;
 }
 
+const COMPLETED_WO_STATUSES =
+  "('JOBCOMPLETED','VEHCOLLECTED','CLOSED','CLOSE','COMP','WORKCOMPLETED')";
+
 /**
- * Section C: Vehicle Schedule — based on Servicing_Schedule-GBE.rptdesign logic.
- * Uses pm.gb_assetregistrationno (vehicle no) to match, falls back to pm.assetnum.
- * Next due date cascade:
- *   1. If latest WO not completed & a completed WO has pmnextduedate → use that
- *   2. Else if latest WO has pmnextduedate → use that
- *   3. Else if pm.nextdate exists → use that
- *   4. Else if pm.lastcompdate exists → lastcompdate + frequency
- *   5. Else pm.laststartdate
+ * Add a PM frequency interval to a date, in UTC (DB datetimes are SGT
+ * wall-clock tagged as UTC, so all date math stays in UTC to avoid drift).
  */
-export async function getScheduleData(assetnum: string): Promise<ScheduleData> {
+function addFrequency(date: Date, frequency: number, frequnit: string | null): Date | null {
+  const d = new Date(date);
+  switch ((frequnit ?? '').toUpperCase()) {
+    case 'MONTHS': d.setUTCMonth(d.getUTCMonth() + frequency); return d;
+    case 'WEEKS':  d.setUTCDate(d.getUTCDate() + frequency * 7); return d;
+    case 'DAYS':   d.setUTCDate(d.getUTCDate() + frequency); return d;
+    case 'YEARS':  d.setUTCFullYear(d.getUTCFullYear() + frequency); return d;
+    default: return null;
+  }
+}
+
+/**
+ * Section C: Vehicle Schedule — a snapshot as of the reporting period end.
+ *
+ * "Last Completed", "Mileage" and "Next Due Date" are derived from the most
+ * recent PM service actually completed WITHIN the period (actfinish < endDate),
+ * so regenerating the report later reproduces the same values and stays
+ * consistent with Section B's Last Service Date. The WO#/WO Status columns
+ * still reflect the current open PM work order (forward-looking).
+ *
+ * Next due date cascade:
+ *   1. Last in-period completed WO's pmnextduedate, else
+ *   2. that WO's actfinish + pm.frequency, else (no completed WO in period)
+ *   3. pm.nextdate, else pm.laststartdate
+ *
+ * Overdue is evaluated against the period end (asOf), not "now".
+ */
+export async function getScheduleData(
+  assetnum: string,
+  endDate: Date
+): Promise<ScheduleData> {
   const pms = await query<{
     pmnum: string;
     description: string | null;
     servicePkgType: string | null;
+    frequency: number | null;
+    frequnit: string | null;
+    nextdate: Date | null;
+    laststartdate: Date | null;
+    expiryDate: Date | null;
     wonum: string | null;
     woStatus: string | null;
-    nextDueDate: Date | null;
     lastCompDate: Date | null;
-    mileageReading: number | null;
-    expiryDate: Date | null;
+    mileageRaw: string | null;
+    lastWoNextDue: Date | null;
   }>(`
-    SELECT DISTINCT
+    SELECT
       pm.pmnum,
       pm.description,
       pm.gb_servicepkgtype AS servicePkgType,
-      workorder.wonum,
-      workorder.status AS woStatus,
-      pm.lastcompdate AS lastCompDate,
+      pm.frequency,
+      pm.frequnit,
+      pm.nextdate,
+      pm.laststartdate,
       pm.GB_EXPIRYDATE AS expiryDate,
-      ISNULL(
-        (SELECT convert(NUMERIC, workorder2.gb_mileagereading)
-         FROM workorder workorder2
-         WHERE workorder2.actfinish IS NOT NULL
-           AND workorder2.pmnum = pm.pmnum
-           AND workorder2.siteid = pm.siteid
-           AND workorder2.workorderid = (
-             SELECT MAX(w.workorderid) FROM workorder w
-             WHERE w.pmnum = pm.pmnum AND w.siteid = pm.siteid AND w.actfinish IS NOT NULL
-           )
-        ), 0
-      ) AS mileageReading,
-      (CASE
-        WHEN workorder.status NOT IN ('JOBCOMPLETED','VEHCOLLECTED','CLOSED','CLOSE')
-          AND (SELECT pmnextduedate FROM workorder WHERE workorderid IN (
-                SELECT MAX(wo.workorderid) FROM workorder wo
-                WHERE wo.pmnum = pm.pmnum AND wo.siteid = pm.siteid
-                  AND wo.status IN ('JOBCOMPLETED','VEHCOLLECTED','CLOSED','CLOSE')
-              )) IS NOT NULL
-        THEN (SELECT pmnextduedate FROM workorder WHERE workorderid IN (
-                SELECT MAX(wo.workorderid) FROM workorder wo
-                WHERE wo.pmnum = pm.pmnum AND wo.siteid = pm.siteid
-                  AND wo.status IN ('JOBCOMPLETED','VEHCOLLECTED','CLOSED','CLOSE')
-              ))
-        ELSE (CASE
-          WHEN workorder.pmnextduedate IS NOT NULL THEN workorder.pmnextduedate
-          ELSE (CASE
-            WHEN pm.nextdate IS NOT NULL THEN pm.nextdate
-            ELSE (CASE
-              WHEN pm.lastcompdate IS NOT NULL THEN (
-                CASE pm.frequnit
-                  WHEN 'MONTHS' THEN DATEADD(MONTH, pm.frequency, pm.lastcompdate)
-                  WHEN 'WEEKS'  THEN DATEADD(WEEK, pm.frequency, pm.lastcompdate)
-                  WHEN 'DAYS'   THEN DATEADD(DAY, pm.frequency, pm.lastcompdate)
-                  WHEN 'YEARS'  THEN DATEADD(YEAR, pm.frequency, pm.lastcompdate)
-                  ELSE NULL
-                END)
-              ELSE pm.laststartdate
-            END)
-          END)
-        END)
-      END) AS nextDueDate
+      cur.wonum,
+      cur.status AS woStatus,
+      lw.actfinish AS lastCompDate,
+      lw.gb_mileagereading AS mileageRaw,
+      lw.pmnextduedate AS lastWoNextDue
     FROM pm
-    LEFT OUTER JOIN workorder ON workorder.pmnum = pm.pmnum
-      AND workorder.siteid = pm.siteid
-      AND workorder.workorderid IN (
-        SELECT MAX(workorderid) FROM workorder WHERE pmnum = pm.pmnum AND siteid = pm.siteid
-      )
+    OUTER APPLY (
+      SELECT TOP 1 wonum, status
+      FROM workorder w
+      WHERE w.pmnum = pm.pmnum AND w.siteid = pm.siteid
+      ORDER BY w.workorderid DESC
+    ) cur
+    OUTER APPLY (
+      SELECT TOP 1 actfinish, gb_mileagereading, pmnextduedate
+      FROM workorder w
+      WHERE w.pmnum = pm.pmnum AND w.siteid = pm.siteid
+        AND w.actfinish IS NOT NULL
+        AND w.actfinish < @endDate
+        AND w.status IN ${COMPLETED_WO_STATUSES}
+      ORDER BY w.actfinish DESC
+    ) lw
     WHERE pm.siteid = @siteId
       AND pm.assetnum = @assetnum
       AND pm.assetnum IS NOT NULL
@@ -106,21 +111,30 @@ export async function getScheduleData(assetnum: string): Promise<ScheduleData> {
   `, {
     siteId: { type: sql.VarChar, value: config.siteId },
     assetnum: { type: sql.VarChar, value: assetnum },
+    endDate: { type: sql.DateTime, value: endDate },
   });
 
-  const now = new Date();
-  const pmDetails: PMDetail[] = pms.map(pm => ({
-    pmnum: pm.pmnum,
-    description: pm.description ?? '',
-    servicePkgType: pm.servicePkgType ?? '',
-    wonum: pm.wonum,
-    woStatus: pm.woStatus,
-    nextDueDate: pm.nextDueDate,
-    lastCompDate: pm.lastCompDate,
-    mileageReading: pm.mileageReading,
-    expiryDate: pm.expiryDate,
-    isOverdue: pm.nextDueDate ? new Date(pm.nextDueDate) < now : false,
-  }));
+  const asOf = new Date(endDate);
+  const pmDetails: PMDetail[] = pms.map(pm => {
+    const nextDueDate = pm.lastCompDate
+      ? (pm.lastWoNextDue ?? addFrequency(pm.lastCompDate, pm.frequency ?? 0, pm.frequnit))
+      : (pm.nextdate ?? pm.laststartdate);
+    const mileage = pm.mileageRaw != null && pm.mileageRaw.trim() !== ''
+      ? Number(pm.mileageRaw)
+      : null;
+    return {
+      pmnum: pm.pmnum,
+      description: pm.description ?? '',
+      servicePkgType: pm.servicePkgType ?? '',
+      wonum: pm.wonum,
+      woStatus: pm.woStatus,
+      nextDueDate: nextDueDate ?? null,
+      lastCompDate: pm.lastCompDate,
+      mileageReading: Number.isFinite(mileage as number) ? mileage : null,
+      expiryDate: pm.expiryDate,
+      isOverdue: nextDueDate ? new Date(nextDueDate) < asOf : false,
+    };
+  });
 
   const serviceOverdue = pmDetails.some(pm => pm.isOverdue);
 

@@ -6,10 +6,14 @@ import { VehicleReport, FleetReport } from './aggregator';
 import { config } from './config';
 
 // Register Handlebars helpers
+// DB datetimes are SGT wall-clock values that the SQL driver tags as UTC.
+// Render in UTC so the stored calendar day is shown verbatim (no +8 shift
+// that would push a late-evening finish onto the next day). Period bounds
+// are constructed at UTC midnight (see getDefaultPeriod) for the same reason.
 Handlebars.registerHelper('formatDate', (date: Date | null) => {
   if (!date) return '—';
   return new Date(date).toLocaleDateString('en-SG', {
-    year: 'numeric', month: 'short', day: 'numeric',
+    year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC',
   });
 });
 

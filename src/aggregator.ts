@@ -48,10 +48,13 @@ export interface FleetSummary {
  * Get the default 6-month reporting period (last 6 months from today).
  */
 export function getDefaultPeriod(): { startDate: Date; endDate: Date } {
-  const endDate = new Date();
-  endDate.setHours(0, 0, 0, 0);
+  // Use UTC midnight so the bounds line up with DB datetimes (which are
+  // SGT wall-clock tagged as UTC) and render correctly via the UTC-based
+  // formatDate helper.
+  const now = new Date();
+  const endDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
   const startDate = new Date(endDate);
-  startDate.setMonth(startDate.getMonth() - 6);
+  startDate.setUTCMonth(startDate.getUTCMonth() - 6);
   return { startDate, endDate };
 }
 
@@ -68,7 +71,7 @@ export async function buildVehicleReport(
   const [parameters, maintenance, schedule, entitlements, spending] = await Promise.all([
     getVehicleParameters(vehicle.assetnum, startDate, endDate),
     getMaintenanceData(vehicle.assetnum, startDate, endDate),
-    getScheduleData(vehicle.assetnum),
+    getScheduleData(vehicle.assetnum, endDate),
     getEntitlementData(vehicle.assetnum),
     getSpendingData(vehicle.assetnum, startDate, endDate),
   ]);
