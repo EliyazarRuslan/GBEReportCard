@@ -19,14 +19,21 @@ export async function getVehicleParameters(
   startDate: Date,
   endDate: Date
 ): Promise<VehicleParameters> {
-  // Downtime: Use REGISTERED date from wostatus as the start,
-  // actfinish (or statusdate) as end. Merge overlapping periods.
+  // Downtime (TAT): Use REGISTERED date from wostatus as the start and the
+  // WKSPCOMPLETED (workshop completed) status date as the end — actfinish /
+  // WORKCOMPLETED trail the physical job by administrative delays. Falls back
+  // to actfinish/statusdate for WOs that never reached WKSPCOMPLETED.
   const woIntervals = await query<{ regDate: Date; endDate: Date }>(`
     SELECT
       ws.changedate AS regDate,
-      ISNULL(w.actfinish, w.statusdate) AS endDate
+      ISNULL(wksp.wkspDate, ISNULL(w.actfinish, w.statusdate)) AS endDate
     FROM workorder w
     JOIN wostatus ws ON ws.wonum = w.wonum AND ws.siteid = w.siteid AND ws.status = 'REGISTERED'
+    OUTER APPLY (
+      SELECT MAX(x.changedate) AS wkspDate
+      FROM wostatus x
+      WHERE x.wonum = w.wonum AND x.siteid = w.siteid AND x.status = 'WKSPCOMPLETED'
+    ) wksp
     WHERE w.siteid = @siteId
       AND w.assetnum = @assetnum
       AND ws.changedate >= @startDate
@@ -40,11 +47,16 @@ export async function getVehicleParameters(
     endDate: { type: sql.DateTime, value: endDate },
   });
 
-  // Merge overlapping intervals to avoid double-counting
-  const merged = mergeIntervals(woIntervals.map(r => ({
-    start: new Date(r.regDate),
-    end: new Date(r.endDate),
-  })));
+  // Same-visit dedup: multiple jobs opened on the same day for the same
+  // vehicle are one workshop visit — collapse them into a single interval
+  // (earliest registration → latest completion) so TAT is not double-counted.
+  // Then merge any remaining overlapping intervals across visits.
+  const visits = groupByVisitDay(
+    woIntervals
+      .map(r => ({ start: new Date(r.regDate), end: new Date(r.endDate) }))
+      .filter(iv => !isNaN(iv.start.getTime()) && !isNaN(iv.end.getTime()) && iv.end > iv.start)
+  );
+  const merged = mergeIntervals(visits);
 
   let totalHours = 0;
   let totalDays = 0;
@@ -136,6 +148,28 @@ export async function getVehicleParameters(
     warrantyRepairCount: warranty?.cnt ?? 0,
     avgWaitingHours: Math.round((waiting?.avgHours ?? 0) * 10) / 10,
   };
+}
+
+/**
+ * Collapse work orders registered on the same calendar day (one workshop
+ * visit) into a single interval: earliest registration → latest completion.
+ * DB dates are treated as UTC throughout the app, so the day key uses UTC.
+ */
+function groupByVisitDay(intervals: { start: Date; end: Date }[]): { start: Date; end: Date }[] {
+  const byDay = new Map<string, { start: Date; end: Date }>();
+  for (const iv of intervals) {
+    const key = iv.start.toISOString().slice(0, 10);
+    const existing = byDay.get(key);
+    if (!existing) {
+      byDay.set(key, { start: iv.start, end: iv.end });
+    } else {
+      byDay.set(key, {
+        start: iv.start < existing.start ? iv.start : existing.start,
+        end: iv.end > existing.end ? iv.end : existing.end,
+      });
+    }
+  }
+  return [...byDay.values()];
 }
 
 /**
