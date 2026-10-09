@@ -188,7 +188,7 @@
       <div class="metric-card">
         <div class="metric-label">Total Downtime</div>
         <div class="metric-value">{{summary.totalDowntimeDays}}</div>
-        <div class="metric-unit">days ({{summary.totalDowntimeHours}} hrs)</div>
+        <div class="metric-unit">days</div>
       </div>
       <div class="metric-card {{#if summary.totalCBJ}}danger{{/if}}">
         <div class="metric-label">Total CBJ</div>
@@ -240,7 +240,7 @@
       <tr>
         <td>Highest Downtime</td>
         <td><strong>{{summary.worstDowntime.assetnum}}</strong></td>
-        <td>{{summary.worstDowntime.days}} days ({{summary.worstDowntime.hours}} hrs)</td>
+        <td>{{summary.worstDowntime.days}} days</td>
       </tr>
       {{/if}}
       {{#if summary.worstCBJ.count}}

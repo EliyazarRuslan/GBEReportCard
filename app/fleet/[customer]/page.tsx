@@ -135,8 +135,8 @@ export default function FleetReportPage() {
       {/* Fleet Summary */}
       <ReportSection title="Fleet Summary">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <MetricCard label="Total Downtime" value={`${summary.totalDowntimeDays} days`} subtitle={`${summary.totalDowntimeHours} hrs`} variant={summary.totalDowntimeDays > 60 ? 'danger' : 'default'} />
-          <MetricCard label="Avg Downtime" value={`${summary.avgDowntimeDays} days`} subtitle={`${summary.avgDowntimeHours} hrs`} variant="default" />
+          <MetricCard label="Total Downtime" value={`${summary.totalDowntimeDays} days`} variant={summary.totalDowntimeDays > 60 ? 'danger' : 'default'} />
+          <MetricCard label="Avg Downtime" value={`${summary.avgDowntimeDays} days`} variant="default" />
           <MetricCard label="Comeback Jobs" value={summary.totalCBJ} variant={summary.totalCBJ > 5 ? 'danger' : summary.totalCBJ > 0 ? 'warning' : 'success'} />
           <MetricCard label="Breakdown" value={summary.totalBreakdown} variant={summary.totalBreakdown > 0 ? 'warning' : 'success'} />
           <MetricCard label="Total Services" value={summary.totalServiceCount} variant="default" />

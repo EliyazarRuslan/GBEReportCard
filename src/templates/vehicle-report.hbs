@@ -205,7 +205,7 @@
       <div class="metric-card">
         <div class="metric-label">Vehicle Downtime</div>
         <div class="metric-value">{{parameters.downtimeDays}}</div>
-        <div class="metric-unit">days ({{parameters.downtimeHours}} hrs)</div>
+        <div class="metric-unit">days</div>
       </div>
       <div class="metric-card {{countClass parameters.cbjCount}}">
         <div class="metric-label">Comeback Jobs (CBJ)</div>
@@ -263,38 +263,17 @@
         <th>WO Number</th>
         <th>Description</th>
         <th>Type</th>
-        <th>Status</th>
-        <th>Reported</th>
       </tr>
       {{#each maintenance.outstandingJobs}}
       <tr>
         <td>{{this.wonum}}</td>
         <td>{{this.description}}</td>
         <td>{{this.worktype}}</td>
-        <td><span class="status-badge status-open">{{this.status}}</span></td>
-        <td>{{formatDate this.reportdate}}</td>
       </tr>
       {{/each}}
     </table>
     {{/if}}
 
-    {{#if maintenance.outstandingRecalls.length}}
-    <div style="margin-top: 8px; font-weight: 600; font-size: 11px; color: #003366;">Outstanding Recalls</div>
-    <table>
-      <tr>
-        <th>Recall #</th>
-        <th>Campaign</th>
-        <th>Status</th>
-      </tr>
-      {{#each maintenance.outstandingRecalls}}
-      <tr>
-        <td>{{this.recallnumber}}</td>
-        <td>{{this.campaigncode}}</td>
-        <td><span class="status-badge status-open">{{this.campaignstatus}}</span></td>
-      </tr>
-      {{/each}}
-    </table>
-    {{/if}}
   </div>
 
   <!-- Section C: Vehicle Schedule -->
@@ -328,7 +307,6 @@
         <th>Last Completed</th>
         <th>Next Due Date</th>
         <th>Mileage</th>
-        <th>Expiry</th>
         <th>Status</th>
       </tr>
       {{#each schedule.pmDetails}}
@@ -340,7 +318,6 @@
         <td>{{#if this.lastCompDate}}{{formatDate this.lastCompDate}}{{else}}—{{/if}}</td>
         <td>{{#if this.nextDueDate}}{{formatDate this.nextDueDate}}{{else}}—{{/if}}</td>
         <td>{{#if this.mileageReading}}{{this.mileageReading}}{{else}}—{{/if}}</td>
-        <td>{{#if this.expiryDate}}{{formatDate this.expiryDate}}{{else}}—{{/if}}</td>
         <td>
           {{#if this.isOverdue}}
             <span class="status-badge status-overdue">OVERDUE</span>

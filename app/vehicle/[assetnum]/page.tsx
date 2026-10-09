@@ -170,7 +170,6 @@ export default function VehicleReportPage() {
           <MetricCard
             label="Downtime (days)"
             value={parameters.downtimeDays}
-            subtitle={`${parameters.downtimeHours} hrs`}
             variant={parameters.downtimeDays > 25 ? 'danger' : parameters.downtimeDays > 12 ? 'warning' : 'success'}
           />
           <MetricCard
@@ -217,8 +216,6 @@ export default function VehicleReportPage() {
                     <th className="text-left py-2 px-2 text-gray-500 font-medium">WO #</th>
                     <th className="text-left py-2 px-2 text-gray-500 font-medium">Description</th>
                     <th className="text-left py-2 px-2 text-gray-500 font-medium">Type</th>
-                    <th className="text-left py-2 px-2 text-gray-500 font-medium">Status</th>
-                    <th className="text-left py-2 px-2 text-gray-500 font-medium">Reported</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -227,10 +224,6 @@ export default function VehicleReportPage() {
                       <td className="py-2 px-2 font-mono">{job.wonum}</td>
                       <td className="py-2 px-2 text-gray-700">{job.description}</td>
                       <td className="py-2 px-2">{job.worktype}</td>
-                      <td className="py-2 px-2">
-                        <StatusBadge status="warning" label={job.status} />
-                      </td>
-                      <td className="py-2 px-2 text-gray-500">{formatDate(job.reportdate)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -267,7 +260,6 @@ export default function VehicleReportPage() {
                   <th className="text-left py-2 px-2 text-gray-500 font-medium">Last Completed</th>
                   <th className="text-left py-2 px-2 text-gray-500 font-medium">Next Due Date</th>
                   <th className="text-right py-2 px-2 text-gray-500 font-medium">Mileage</th>
-                  <th className="text-left py-2 px-2 text-gray-500 font-medium">Expiry</th>
                   <th className="text-left py-2 px-2 text-gray-500 font-medium">Status</th>
                 </tr>
               </thead>
@@ -283,7 +275,6 @@ export default function VehicleReportPage() {
                     <td className="py-2 px-2 text-gray-500">{formatDate(pm.lastCompDate)}</td>
                     <td className="py-2 px-2 text-gray-500">{formatDate(pm.nextDueDate)}</td>
                     <td className="py-2 px-2 text-right">{pm.mileageReading ? pm.mileageReading.toLocaleString() : '—'}</td>
-                    <td className="py-2 px-2 text-gray-500">{formatDate(pm.expiryDate)}</td>
                     <td className="py-2 px-2">
                       <StatusBadge
                         status={pm.isOverdue ? 'danger' : 'success'}
