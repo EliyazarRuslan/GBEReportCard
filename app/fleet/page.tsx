@@ -3,11 +3,15 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { MetricCard } from '../../components/MetricCard';
+import { SalesTypeBadge } from '../../components/SalesTypeBadge';
 
 interface FleetCustomer {
   pluspcustomer: string;
   customerName: string;
   vehicleCount: number;
+  mcpCount: number;
+  cmpCount: number;
+  pmpCount: number;
 }
 
 export default function FleetListPage() {
@@ -32,7 +36,7 @@ export default function FleetListPage() {
     <div>
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-gray-900">Fleet Reports</h2>
-        <p className="text-sm text-gray-500 mt-1">Customers with multiple warrantied vehicles</p>
+        <p className="text-sm text-gray-500 mt-1">Customers with multiple vehicles on active MCP, CMP or PMP agreements</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
@@ -57,10 +61,13 @@ export default function FleetListPage() {
             >
               <h3 className="font-semibold text-gray-900">{c.customerName || c.pluspcustomer}</h3>
               <p className="text-sm text-gray-500 mt-1">Code: {c.pluspcustomer}</p>
-              <div className="mt-3 flex items-center gap-2">
+              <div className="mt-3 flex items-center gap-2 flex-wrap">
                 <span className="bg-[#C8A951]/10 text-[#C8A951] text-sm font-medium px-2.5 py-0.5 rounded">
                   {c.vehicleCount} vehicles
                 </span>
+                {c.mcpCount > 0 && <span className="text-xs text-gray-500"><SalesTypeBadge code="CM" /> {c.mcpCount}</span>}
+                {c.cmpCount > 0 && <span className="text-xs text-gray-500"><SalesTypeBadge code="CT" /> {c.cmpCount}</span>}
+                {c.pmpCount > 0 && <span className="text-xs text-gray-500"><SalesTypeBadge code="PP" /> {c.pmpCount}</span>}
               </div>
             </Link>
           ))}

@@ -57,7 +57,7 @@ const tools: Anthropic.Tool[] = [
   },
   {
     name: 'get_fleet_customers',
-    description: 'Get the list of customers that have multiple warrantied vehicles (fleet customers). Returns customer code, name, and vehicle count.',
+    description: 'Get the list of customers that have multiple warrantied vehicles (fleet customers). Returns customer code, name, vehicle count, and counts per sales type (mcpCount=MCP, cmpCount=CMP, pmpCount=PMP).',
     input_schema: {
       type: 'object' as const,
       properties: {},
@@ -66,7 +66,7 @@ const tools: Anthropic.Tool[] = [
   },
   {
     name: 'query_database',
-    description: `Execute a read-only SQL SELECT query against the Maximo database (MAXDB76). Use this for ad-hoc questions that the other tools cannot answer. Key tables: workorder (wonum, siteid, status, pluspcustomer, worktype), labtrans (labor transactions), matusetrans (material usage), asset (assetnum, serialnum, pluspcustomer), pluspagreement (agreements), caentitle (entitlements), pm (preventive maintenance), inventory, item. Always include siteid='GBE' in WHERE clauses. Only SELECT queries are allowed.`,
+    description: `Execute a read-only SQL SELECT query against the Maximo database (MAXDB76). Use this for ad-hoc questions that the other tools cannot answer. Key tables: workorder (wonum, siteid, status, pluspcustomer, worktype), labtrans (labor transactions), matusetrans (material usage), asset (assetnum, serialnum, pluspcustomer), pluspagreement (agreements; gb_salestype CM=MCP, CT=CMP, PP=PMP; MCP/CMP vehicles link via caentitle.gb_vehiclenum, PMP vehicles link via pm.gb_agreement), caentitle (entitlements), pm (preventive maintenance), inventory, item. Always include siteid='GBE' in WHERE clauses. Only SELECT queries are allowed.`,
     input_schema: {
       type: 'object' as const,
       properties: {

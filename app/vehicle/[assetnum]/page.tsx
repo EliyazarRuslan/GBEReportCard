@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { salesTypeLabel } from '../../../components/SalesTypeBadge';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { MetricCard } from '../../../components/MetricCard';
@@ -17,6 +18,7 @@ interface VehicleReport {
     pluspcustomer: string;
     customerName: string;
     agreement: string;
+    salesType?: string;
     warrantyStart: string | null;
     warrantyEnd: string | null;
   };
@@ -142,7 +144,7 @@ export default function VehicleReportPage() {
             <h2 className="text-2xl font-bold text-gray-900">{vehicle.vehicleNo || vehicle.assetnum}</h2>
             <p className="text-gray-600">{vehicle.description}</p>
             <p className="text-sm text-gray-500 mt-1">
-              Chassis: {vehicle.assetnum} &middot; {vehicle.customerName} &middot; Agreement: {vehicle.agreement}
+              Chassis: {vehicle.assetnum} &middot; {vehicle.customerName} &middot; Agreement: {vehicle.agreement}{vehicle.salesType ? ` (${salesTypeLabel(vehicle.salesType)})` : ''}
             </p>
           </div>
           <a

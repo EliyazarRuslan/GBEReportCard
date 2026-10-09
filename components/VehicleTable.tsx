@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { SalesTypeBadge } from './SalesTypeBadge';
 
 interface Vehicle {
   assetnum: string;
@@ -9,6 +10,7 @@ interface Vehicle {
   pluspcustomer: string;
   customerName: string;
   agreement: string;
+  salesType?: string;
   warrantyStart: string | null;
   warrantyEnd: string | null;
 }
@@ -32,6 +34,7 @@ export function VehicleTable({ vehicles }: { vehicles: Vehicle[] }) {
               <th className="px-4 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Description</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Customer</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Agreement</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Type</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Warranty End</th>
             </tr>
           </thead>
@@ -56,6 +59,7 @@ export function VehicleTable({ vehicles }: { vehicles: Vehicle[] }) {
                   </Link>
                 </td>
                 <td className="px-4 py-3 text-sm text-gray-700 font-mono">{v.agreement}</td>
+                <td className="px-4 py-3"><SalesTypeBadge code={v.salesType ?? ''} /></td>
                 <td className="px-4 py-3 text-sm text-gray-500">
                   {v.warrantyEnd ? new Date(v.warrantyEnd).toLocaleDateString('en-SG', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}
                 </td>
