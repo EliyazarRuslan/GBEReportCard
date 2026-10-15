@@ -72,7 +72,7 @@ export async function buildVehicleReport(
     getVehicleParameters(vehicle.assetnum, startDate, endDate),
     getMaintenanceData(vehicle.assetnum, startDate, endDate),
     getScheduleData(vehicle.assetnum, endDate),
-    getEntitlementData(vehicle.assetnum),
+    getEntitlementData(vehicle.assetnum, startDate, endDate),
     getSpendingData(vehicle.assetnum, startDate, endDate),
   ]);
 

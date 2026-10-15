@@ -167,7 +167,7 @@ export default function FleetReportPage() {
                 <div className="flex items-center gap-2">
                   <StatusBadge status="warning" label="DOWNTIME" />
                   <span className="text-sm text-gray-700">
-                    Worst downtime: <Link href={`/vehicle/${summary.worstDowntime.assetnum}`} className="text-[#003366] hover:text-[#C8A951] font-medium">{summary.worstDowntime.assetnum}</Link> ({summary.worstDowntime.days}d / {summary.worstDowntime.hours}h)
+                    Worst downtime: <Link href={`/vehicle/${summary.worstDowntime.assetnum}`} className="text-[#003366] hover:text-[#C8A951] font-medium">{summary.worstDowntime.assetnum}</Link> ({summary.worstDowntime.days}d)
                   </span>
                 </div>
               )}
@@ -210,7 +210,7 @@ export default function FleetReportPage() {
                     </Link>
                   </td>
                   <td className="py-2 px-2 text-gray-700">{v.vehicle.description}</td>
-                  <td className="py-2 px-2 text-right">{v.parameters.downtimeDays}d <span className="text-gray-400 text-xs">({v.parameters.downtimeHours}h)</span></td>
+                  <td className="py-2 px-2 text-right">{v.parameters.downtimeDays}d</td>
                   <td className="py-2 px-2 text-right">{v.parameters.cbjCount}</td>
                   <td className="py-2 px-2 text-right">{v.maintenance.serviceCount}</td>
                   <td className="py-2 px-2 text-right">{v.maintenance.repairCount}</td>

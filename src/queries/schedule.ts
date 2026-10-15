@@ -138,8 +138,10 @@ export async function getScheduleData(
 
   const serviceOverdue = pmDetails.some(pm => pm.isOverdue);
 
+  // Earliest scheduled due date. Overdue dates are kept: a missed service
+  // (customer did not turn up) is still the scheduled date until it's done.
   const nextServicePm = pmDetails
-    .filter(pm => !pm.isOverdue && pm.nextDueDate)
+    .filter(pm => pm.nextDueDate)
     .sort((a, b) => new Date(a.nextDueDate!).getTime() - new Date(b.nextDueDate!).getTime())[0];
 
   return {
