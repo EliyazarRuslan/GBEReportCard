@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import useSWR from 'swr';
+import { fetchJson } from '../lib/fetch-json';
 import { MetricCard } from '../components/MetricCard';
 import { VehicleTable } from '../components/VehicleTable';
 
@@ -17,21 +19,10 @@ interface Vehicle {
 }
 
 export default function DashboardPage() {
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, error: fetchError, isLoading: loading } = useSWR<Vehicle[]>('/api/vehicles', fetchJson);
+  const vehicles = data ?? [];
+  const error = fetchError ? 'Failed to load vehicles' : null;
   const [search, setSearch] = useState('');
-
-  useEffect(() => {
-    fetch('/api/vehicles')
-      .then(res => {
-        if (!res.ok) throw new Error('Failed to load vehicles');
-        return res.json();
-      })
-      .then(setVehicles)
-      .catch(err => setError(err.message))
-      .finally(() => setLoading(false));
-  }, []);
 
   const filtered = vehicles.filter(v => {
     if (!search) return true;
@@ -76,8 +67,12 @@ export default function DashboardPage() {
 
       {/* Search */}
       <div className="mb-4">
+        <label htmlFor="vehicle-search" className="block text-sm font-medium text-gray-700 mb-1">
+          Search vehicles
+        </label>
         <input
-          type="text"
+          id="vehicle-search"
+          type="search"
           placeholder="Search by vehicle no, chassis, description, or customer..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}

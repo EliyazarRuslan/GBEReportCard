@@ -1,6 +1,6 @@
 'use client';
 
-type Status = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
+export type Status = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
 
 const statusStyles: Record<Status, string> = {
   success: 'bg-emerald-100 text-emerald-800',
@@ -22,16 +22,4 @@ export function StatusBadge({
       {label}
     </span>
   );
-}
-
-export function getDowntimeStatus(hours: number): Status {
-  if (hours > 200) return 'danger';
-  if (hours > 100) return 'warning';
-  return 'success';
-}
-
-export function getCountStatus(count: number): Status {
-  if (count > 3) return 'danger';
-  if (count > 0) return 'warning';
-  return 'success';
 }

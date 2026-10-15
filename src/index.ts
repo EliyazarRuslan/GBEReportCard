@@ -6,6 +6,7 @@ import { generateVehicleReportPdf, generateFleetReportPdf } from './pdf-generato
 import { sendReport, buildVehicleEmailBody, buildFleetEmailBody } from './email-sender';
 import { startScheduler } from './scheduler';
 import path from 'path';
+import { mapWithConcurrency, PDF_CONCURRENCY } from './concurrency';
 
 const program = new Command();
 
@@ -31,15 +32,11 @@ program
       const vehicleReports = await buildAllVehicleReports(period.startDate, period.endDate);
       console.log(`\nGenerating PDFs for ${vehicleReports.length} vehicles...`);
 
-      for (const report of vehicleReports) {
-        await generateVehicleReportPdf(report);
-      }
+      await mapWithConcurrency(vehicleReports, PDF_CONCURRENCY, generateVehicleReportPdf);
 
       console.log(`\n=== Generating Fleet Reports ===\n`);
       const fleetReports = await buildFleetReports(period.startDate, period.endDate);
-      for (const report of fleetReports) {
-        await generateFleetReportPdf(report);
-      }
+      await mapWithConcurrency(fleetReports, PDF_CONCURRENCY, generateFleetReportPdf);
 
       console.log(`\nDone! Generated ${vehicleReports.length} vehicle reports and ${fleetReports.length} fleet reports.`);
     } catch (error) {
@@ -115,15 +112,13 @@ program
         process.exit(0);
       }
 
-      for (const report of filtered) {
-        const fleetPdfPath = await generateFleetReportPdf(report);
-
-        // Also generate individual vehicle PDFs
-        const vehiclePdfs: string[] = [];
-        for (const vr of report.vehicles) {
-          const vPdf = await generateVehicleReportPdf(vr);
-          vehiclePdfs.push(vPdf);
-        }
+      // One fleet at a time so each email goes out once its PDFs are ready.
+      await mapWithConcurrency(filtered, 1, async report => {
+        // Fleet PDF and the individual vehicle PDFs are independent.
+        const [fleetPdfPath, vehiclePdfs] = await Promise.all([
+          generateFleetReportPdf(report),
+          mapWithConcurrency(report.vehicles, PDF_CONCURRENCY, generateVehicleReportPdf),
+        ]);
 
         if (opts.email) {
           const attachments = [
@@ -137,7 +132,7 @@ program
             attachments,
           });
         }
-      }
+      });
 
       console.log(`\nDone! Generated ${filtered.length} fleet reports.`);
     } catch (error) {
@@ -158,9 +153,9 @@ program
         await getPool();
         const period = getDefaultPeriod();
         const vehicleReports = await buildAllVehicleReports(period.startDate, period.endDate);
-        for (const r of vehicleReports) await generateVehicleReportPdf(r);
+        await mapWithConcurrency(vehicleReports, PDF_CONCURRENCY, generateVehicleReportPdf);
         const fleetReports = await buildFleetReports(period.startDate, period.endDate);
-        for (const r of fleetReports) await generateFleetReportPdf(r);
+        await mapWithConcurrency(fleetReports, PDF_CONCURRENCY, generateFleetReportPdf);
         console.log(`Generated ${vehicleReports.length} vehicle + ${fleetReports.length} fleet reports`);
       } finally {
         await closePool();

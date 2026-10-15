@@ -3,8 +3,29 @@
 import { useState, useRef, useEffect, FormEvent } from 'react';
 
 interface Message {
+  id: string;
   role: 'user' | 'assistant';
   content: string;
+}
+
+interface ChatResponse {
+  reply?: string;
+  error?: string;
+}
+
+let messageSeq = 0;
+function makeMessage(role: Message['role'], content: string): Message {
+  messageSeq += 1;
+  return { id: `msg-${messageSeq}`, role, content };
+}
+
+async function readChatReply(res: Response): Promise<string> {
+  if (!res.ok) {
+    const body: ChatResponse = await res.json().catch(() => ({}));
+    return `Error: ${body.error ?? `Request failed (${res.status})`}`;
+  }
+  const data: ChatResponse = await res.json();
+  return data.error ? `Error: ${data.error}` : data.reply ?? '';
 }
 
 export default function ChatWidget() {
@@ -28,8 +49,7 @@ export default function ChatWidget() {
     const text = input.trim();
     if (!text || isLoading) return;
 
-    const userMessage: Message = { role: 'user', content: text };
-    const updated = [...messages, userMessage];
+    const updated = [...messages, makeMessage('user', text)];
     setMessages(updated);
     setInput('');
     setIsLoading(true);
@@ -38,16 +58,12 @@ export default function ChatWidget() {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: updated }),
+        body: JSON.stringify({ messages: updated.map(({ role, content }) => ({ role, content })) }),
       });
-      const data = await res.json();
-      if (data.error) {
-        setMessages([...updated, { role: 'assistant', content: `Error: ${data.error}` }]);
-      } else {
-        setMessages([...updated, { role: 'assistant', content: data.reply }]);
-      }
+      const reply = await readChatReply(res);
+      setMessages([...updated, makeMessage('assistant', reply)]);
     } catch {
-      setMessages([...updated, { role: 'assistant', content: 'Failed to connect to chat service.' }]);
+      setMessages([...updated, makeMessage('assistant', 'Failed to connect to chat service.')]);
     } finally {
       setIsLoading(false);
     }
@@ -58,6 +74,7 @@ export default function ChatWidget() {
       {/* Floating button */}
       {!isOpen && (
         <button
+          type="button"
           onClick={() => setIsOpen(true)}
           className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-[#C8A951] text-white shadow-lg hover:bg-[#b89840] transition-colors flex items-center justify-center"
           aria-label="Open chat"
@@ -80,6 +97,7 @@ export default function ChatWidget() {
               <span className="font-semibold text-sm">Fleet AI Assistant</span>
             </div>
             <button
+              type="button"
               onClick={() => setIsOpen(false)}
               className="text-white/60 hover:text-white transition-colors"
               aria-label="Close chat"
@@ -102,8 +120,8 @@ export default function ChatWidget() {
                 </div>
               </div>
             )}
-            {messages.map((msg, i) => (
-              <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            {messages.map(msg => (
+              <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div
                   className={`max-w-[85%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap ${
                     msg.role === 'user'
@@ -131,7 +149,9 @@ export default function ChatWidget() {
 
           {/* Input */}
           <form onSubmit={handleSubmit} className="p-3 border-t border-gray-200 flex gap-2">
+            <label htmlFor="chat-input" className="sr-only">Message</label>
             <input
+              id="chat-input"
               ref={inputRef}
               type="text"
               value={input}
@@ -142,6 +162,7 @@ export default function ChatWidget() {
             />
             <button
               type="submit"
+              aria-label="Send message"
               disabled={isLoading || !input.trim()}
               className="px-3 py-2 bg-[#C8A951] text-white rounded-lg text-sm hover:bg-[#b89840] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >

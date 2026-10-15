@@ -4,6 +4,7 @@ import { MaintenanceData, getMaintenanceData } from './queries/maintenance';
 import { ScheduleData, getScheduleData } from './queries/schedule';
 import { EntitlementItem, getEntitlementData } from './queries/entitlement';
 import { SpendingData, getSpendingData } from './queries/spending';
+import { mapWithConcurrency, VEHICLE_REPORT_CONCURRENCY } from './concurrency';
 
 export interface VehicleReport {
   vehicle: WarrantiedVehicle;
@@ -91,7 +92,7 @@ export async function buildVehicleReport(
 /**
  * Build fleet summary from individual vehicle reports.
  */
-function buildFleetSummary(vehicles: VehicleReport[]): FleetSummary {
+export function buildFleetSummary(vehicles: VehicleReport[]): FleetSummary {
   const totalDowntimeDays = vehicles.reduce((s, v) => s + v.parameters.downtimeDays, 0);
   const totalDowntimeHours = vehicles.reduce((s, v) => s + v.parameters.downtimeHours, 0);
   const totalCBJ = vehicles.reduce((s, v) => s + v.parameters.cbjCount, 0);
@@ -133,7 +134,7 @@ function buildFleetSummary(vehicles: VehicleReport[]): FleetSummary {
     : null;
 
   return {
-    totalDowntimeDays,
+    totalDowntimeDays: Math.round(totalDowntimeDays * 10) / 10,
     totalDowntimeHours,
     avgDowntimeDays: vehicles.length > 0 ? Math.round(totalDowntimeDays / vehicles.length) : 0,
     avgDowntimeHours: vehicles.length > 0 ? Math.round(totalDowntimeHours / vehicles.length) : 0,
@@ -162,12 +163,43 @@ export async function buildAllVehicleReports(
   const vehicles = await getWarrantiedVehicles();
   console.log(`Found ${vehicles.length} warrantied vehicles`);
 
-  const reports: VehicleReport[] = [];
-  for (const vehicle of vehicles) {
-    const report = await buildVehicleReport(vehicle, period.startDate, period.endDate);
-    reports.push(report);
-  }
-  return reports;
+  return buildVehicleReports(vehicles, period.startDate, period.endDate);
+}
+
+/**
+ * Build reports for a list of vehicles with bounded concurrency.
+ */
+export function buildVehicleReports(
+  vehicles: readonly WarrantiedVehicle[],
+  startDate: Date,
+  endDate: Date
+): Promise<VehicleReport[]> {
+  return mapWithConcurrency(vehicles, VEHICLE_REPORT_CONCURRENCY, vehicle =>
+    buildVehicleReport(vehicle, startDate, endDate)
+  );
+}
+
+/**
+ * Build one customer's fleet report from that customer's vehicles.
+ * `customerVehicles` must be non-empty.
+ */
+export async function buildCustomerFleetReport(
+  customer: string,
+  customerName: string,
+  customerVehicles: readonly WarrantiedVehicle[],
+  startDate: Date,
+  endDate: Date
+): Promise<FleetReport> {
+  const vehicleReports = await buildVehicleReports(customerVehicles, startDate, endDate);
+  return {
+    customer,
+    customerName,
+    vehicleCount: customerVehicles.length,
+    period: { startDate, endDate },
+    vehicles: vehicleReports,
+    summary: buildFleetSummary(vehicleReports),
+    generatedAt: new Date(),
+  };
 }
 
 /**
@@ -182,28 +214,13 @@ export async function buildFleetReports(
   console.log(`Found ${fleetCustomers.length} fleet customers`);
 
   const vehicles = await getWarrantiedVehicles();
-  const fleetReports: FleetReport[] = [];
 
-  for (const fc of fleetCustomers) {
+  // One customer at a time; vehicles within a customer run concurrently.
+  return mapWithConcurrency(fleetCustomers, 1, fc => {
     console.log(`Building fleet report for ${fc.pluspcustomer} (${fc.customerName})...`);
     const customerVehicles = vehicles.filter(v => v.pluspcustomer === fc.pluspcustomer);
-
-    const vehicleReports: VehicleReport[] = [];
-    for (const vehicle of customerVehicles) {
-      const report = await buildVehicleReport(vehicle, period.startDate, period.endDate);
-      vehicleReports.push(report);
-    }
-
-    fleetReports.push({
-      customer: fc.pluspcustomer,
-      customerName: fc.customerName,
-      vehicleCount: customerVehicles.length,
-      period,
-      vehicles: vehicleReports,
-      summary: buildFleetSummary(vehicleReports),
-      generatedAt: new Date(),
-    });
-  }
-
-  return fleetReports;
+    return buildCustomerFleetReport(
+      fc.pluspcustomer, fc.customerName, customerVehicles, period.startDate, period.endDate
+    );
+  });
 }

@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import useSWR from 'swr';
+import { fetchJson } from '../../lib/fetch-json';
 import Link from 'next/link';
 import { MetricCard } from '../../components/MetricCard';
 import { SalesTypeBadge } from '../../components/SalesTypeBadge';
@@ -15,20 +16,9 @@ interface FleetCustomer {
 }
 
 export default function FleetListPage() {
-  const [customers, setCustomers] = useState<FleetCustomer[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch('/api/fleet')
-      .then(res => {
-        if (!res.ok) throw new Error('Failed to load fleet customers');
-        return res.json();
-      })
-      .then(setCustomers)
-      .catch(err => setError(err.message))
-      .finally(() => setLoading(false));
-  }, []);
+  const { data, error: fetchError, isLoading: loading } = useSWR<FleetCustomer[]>('/api/fleet', fetchJson);
+  const customers = data ?? [];
+  const error = fetchError ? 'Failed to load fleet customers' : null;
 
   const totalVehicles = customers.reduce((s, c) => s + c.vehicleCount, 0);
 

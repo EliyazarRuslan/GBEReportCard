@@ -387,12 +387,14 @@ let overdueOnly = false;
 let searchTerm = '';
 let sortKey = 'name-asc';
 
+const moneyFmt = new Intl.NumberFormat('en-SG', {minimumFractionDigits:2, maximumFractionDigits:2});
+const intFmt = new Intl.NumberFormat('en-SG');
 function fmt(n) {
   if (n == null || isNaN(n)) return '-';
-  return new Intl.NumberFormat('en-SG', {minimumFractionDigits:2, maximumFractionDigits:2}).format(n);
+  return moneyFmt.format(n);
 }
 function fmtInt(n) {
-  return new Intl.NumberFormat('en-SG').format(n || 0);
+  return intFmt.format(n || 0);
 }
 
 function getSites(c) {

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { SalesTypeBadge } from './SalesTypeBadge';
+import { formatDate } from '../lib/format';
 
 interface Vehicle {
   assetnum: string;
@@ -39,8 +40,8 @@ export function VehicleTable({ vehicles }: { vehicles: Vehicle[] }) {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {vehicles.map((v, i) => (
-              <tr key={`${v.assetnum}-${i}`} className="hover:bg-gray-50 transition-colors">
+            {vehicles.map(v => (
+              <tr key={`${v.assetnum}-${v.agreement}`} className="hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3 whitespace-nowrap">
                   <Link
                     href={`/vehicle/${v.assetnum}`}
@@ -61,7 +62,7 @@ export function VehicleTable({ vehicles }: { vehicles: Vehicle[] }) {
                 <td className="px-4 py-3 text-sm text-gray-700 font-mono">{v.agreement}</td>
                 <td className="px-4 py-3"><SalesTypeBadge code={v.salesType ?? ''} /></td>
                 <td className="px-4 py-3 text-sm text-gray-500">
-                  {v.warrantyEnd ? new Date(v.warrantyEnd).toLocaleDateString('en-SG', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}
+                  {formatDate(v.warrantyEnd)}
                 </td>
               </tr>
             ))}
