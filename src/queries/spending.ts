@@ -13,7 +13,8 @@ export interface SpendingData {
 
 /**
  * Section E: Customer Spending for a vehicle over a date range.
- * Cost per km is calculated using gb_mileagereading from work orders.
+ * Cost per km uses the first and last gb_mileagereading on work orders
+ * completed within the same period.
  */
 export async function getSpendingData(
   assetnum: string,
@@ -54,35 +55,21 @@ export async function getSpendingData(
     endDate: { type: sql.DateTime, value: endDate },
   });
 
-  // Mileage at start of period (latest completed WO mileage before/at start date)
-  const [mileStart] = await query<{ mileage: number | null }>(`
-    SELECT TOP 1 CONVERT(NUMERIC, gb_mileagereading) AS mileage
+  // Odometer readings from work orders completed within the period
+  const readings = await query<{ mileage: number }>(`
+    SELECT TRY_CONVERT(NUMERIC, gb_mileagereading) AS mileage
     FROM workorder
     WHERE siteid = @siteId
       AND assetnum = @assetnum
-      AND gb_mileagereading IS NOT NULL
+      AND TRY_CONVERT(NUMERIC, gb_mileagereading) > 0
       AND actfinish IS NOT NULL
-      AND actfinish <= @startDate
-    ORDER BY actfinish DESC
+      AND actfinish >= @startDate
+      AND actfinish < @endDate
+    ORDER BY actfinish
   `, {
     siteId: { type: sql.VarChar, value: config.siteId },
     assetnum: { type: sql.VarChar, value: assetnum },
     startDate: { type: sql.DateTime, value: startDate },
-  });
-
-  // Mileage at end of period (latest completed WO mileage before/at end date)
-  const [mileEnd] = await query<{ mileage: number | null }>(`
-    SELECT TOP 1 CONVERT(NUMERIC, gb_mileagereading) AS mileage
-    FROM workorder
-    WHERE siteid = @siteId
-      AND assetnum = @assetnum
-      AND gb_mileagereading IS NOT NULL
-      AND actfinish IS NOT NULL
-      AND actfinish <= @endDate
-    ORDER BY actfinish DESC
-  `, {
-    siteId: { type: sql.VarChar, value: config.siteId },
-    assetnum: { type: sql.VarChar, value: assetnum },
     endDate: { type: sql.DateTime, value: endDate },
   });
 
@@ -90,8 +77,7 @@ export async function getSpendingData(
   const materialCost = material?.total ?? 0;
   const totalCost = laborCost + materialCost;
 
-  const mileageStart = mileStart?.mileage ?? null;
-  const mileageEnd = mileEnd?.mileage ?? null;
+  const { mileageStart, mileageEnd } = getMileageRange(readings.map((r) => r.mileage));
   const mileageDelta = (mileageStart !== null && mileageEnd !== null)
     ? mileageEnd - mileageStart
     : null;
@@ -107,5 +93,20 @@ export async function getSpendingData(
     mileageEnd,
     mileageDelta,
     costPerKm,
+  };
+}
+
+/**
+ * Odometers only go up, so a reading higher than any later one is a typo
+ * (e.g. 692,565 between 180,476 and 194,212). Drop those, then take the
+ * first and last remaining readings. Input must be in chronological order.
+ */
+export function getMileageRange(
+  readings: readonly number[]
+): { mileageStart: number | null; mileageEnd: number | null } {
+  const valid = readings.filter((value, i) => readings.slice(i + 1).every((later) => value <= later));
+  return {
+    mileageStart: valid[0] ?? null,
+    mileageEnd: valid.at(-1) ?? null,
   };
 }
