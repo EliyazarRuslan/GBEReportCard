@@ -66,8 +66,10 @@ export interface Entitlement {
 }
 
 export interface VehicleSpending {
+  contractBilling: number;
   laborCost: number;
   materialCost: number;
+  miscCost: number;
   totalCost: number;
   mileageDelta: number | null;
   costPerKm: number | null;

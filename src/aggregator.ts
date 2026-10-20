@@ -36,8 +36,10 @@ export interface FleetSummary {
   totalBreakdown: number;
   totalServiceCount: number;
   totalRepairCount: number;
+  totalContractBilling: number;
   totalLaborCost: number;
   totalMaterialCost: number;
+  totalMiscCost: number;
   totalCost: number;
   avgCostPerKm: number | null;
   overdueVehicles: string[];
@@ -99,9 +101,11 @@ export function buildFleetSummary(vehicles: VehicleReport[]): FleetSummary {
   const totalBreakdown = vehicles.reduce((s, v) => s + v.parameters.breakdownCount, 0);
   const totalServiceCount = vehicles.reduce((s, v) => s + v.maintenance.serviceCount, 0);
   const totalRepairCount = vehicles.reduce((s, v) => s + v.maintenance.repairCount, 0);
+  const totalContractBilling = vehicles.reduce((s, v) => s + v.spending.contractBilling, 0);
   const totalLaborCost = vehicles.reduce((s, v) => s + v.spending.laborCost, 0);
   const totalMaterialCost = vehicles.reduce((s, v) => s + v.spending.materialCost, 0);
-  const totalCost = totalLaborCost + totalMaterialCost;
+  const totalMiscCost = vehicles.reduce((s, v) => s + v.spending.miscCost, 0);
+  const totalCost = totalContractBilling + totalLaborCost + totalMaterialCost + totalMiscCost;
 
   // Average cost per km (only vehicles with valid mileage data)
   const validCostPerKm = vehicles.filter(v => v.spending.costPerKm !== null);
@@ -142,8 +146,10 @@ export function buildFleetSummary(vehicles: VehicleReport[]): FleetSummary {
     totalBreakdown,
     totalServiceCount,
     totalRepairCount,
+    totalContractBilling: Math.round(totalContractBilling * 100) / 100,
     totalLaborCost: Math.round(totalLaborCost * 100) / 100,
     totalMaterialCost: Math.round(totalMaterialCost * 100) / 100,
+    totalMiscCost: Math.round(totalMiscCost * 100) / 100,
     totalCost: Math.round(totalCost * 100) / 100,
     avgCostPerKm,
     overdueVehicles,

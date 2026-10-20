@@ -23,7 +23,7 @@ Available data per vehicle:
 - Maintenance: service count, repair count, outstanding jobs, outstanding recalls
 - Schedule: PM (preventive maintenance) details, overdue status, next service dates
 - Entitlements: agreement-linked craft entitlements with used/balance quantities
-- Spending: labor cost, material cost, total cost, mileage, cost per km
+- Spending (actual customer billing): contract billing, WO-billed labor, WO-billed material, misc (DDE) billing, total cost, mileage, cost per km
 
 When answering:
 - Be concise and direct

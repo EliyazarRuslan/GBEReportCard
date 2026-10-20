@@ -367,12 +367,20 @@
     <div class="section-title">E. Customer Spending</div>
     <div class="cost-summary">
       <div class="metric-card">
-        <div class="metric-label">Labor Cost</div>
+        <div class="metric-label">Contract Billing</div>
+        <div class="metric-value">${{formatMoney spending.contractBilling}}</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Labor (WO Billing)</div>
         <div class="metric-value">${{formatMoney spending.laborCost}}</div>
       </div>
       <div class="metric-card">
-        <div class="metric-label">Material Cost</div>
+        <div class="metric-label">Material (WO Billing)</div>
         <div class="metric-value">${{formatMoney spending.materialCost}}</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Misc (DDE Billing)</div>
+        <div class="metric-value">${{formatMoney spending.miscCost}}</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">Total Cost</div>

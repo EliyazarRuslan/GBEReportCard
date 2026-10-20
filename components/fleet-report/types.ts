@@ -3,7 +3,7 @@ export interface FleetVehicleRow {
   parameters: { downtimeDays: number; cbjCount: number; breakdownCount: number; warrantyRepairCount: number; avgWaitingHours: number };
   maintenance: { serviceCount: number; repairCount: number };
   schedule: { serviceOverdue: boolean };
-  spending: { laborCost: number; materialCost: number; totalCost: number; costPerKm: number | null };
+  spending: { contractBilling: number; laborCost: number; materialCost: number; miscCost: number; totalCost: number; costPerKm: number | null };
 }
 
 export interface FleetSummary {
@@ -13,8 +13,10 @@ export interface FleetSummary {
   totalBreakdown: number;
   totalServiceCount: number;
   totalRepairCount: number;
+  totalContractBilling: number;
   totalLaborCost: number;
   totalMaterialCost: number;
+  totalMiscCost: number;
   totalCost: number;
   avgCostPerKm: number | null;
   overdueVehicles: string[];

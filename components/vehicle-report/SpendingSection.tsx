@@ -7,8 +7,10 @@ export function SpendingSection({ spending }: { spending: VehicleSpending }) {
   return (
     <ReportSection title="Section E — Customer Spending">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <MetricCard label="Labor Cost" value={formatMoney(spending.laborCost)} variant="default" />
-        <MetricCard label="Material Cost" value={formatMoney(spending.materialCost)} variant="default" />
+        <MetricCard label="Contract Billing" value={formatMoney(spending.contractBilling)} variant="default" />
+        <MetricCard label="Labor (WO Billing)" value={formatMoney(spending.laborCost)} variant="default" />
+        <MetricCard label="Material (WO Billing)" value={formatMoney(spending.materialCost)} variant="default" />
+        <MetricCard label="Misc (DDE Billing)" value={formatMoney(spending.miscCost)} variant="default" />
         <MetricCard label="Total Cost" value={formatMoney(spending.totalCost)} variant={spending.totalCost > 10000 ? 'warning' : 'default'} />
         <MetricCard
           label="Cost / KM"

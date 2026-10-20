@@ -2,8 +2,10 @@ import { query, sql } from '../db';
 import { config } from '../config';
 
 export interface SpendingData {
+  contractBilling: number;
   laborCost: number;
   materialCost: number;
+  miscCost: number;
   totalCost: number;
   mileageStart: number | null;
   mileageEnd: number | null;
@@ -12,7 +14,10 @@ export interface SpendingData {
 }
 
 /**
- * Section E: Customer Spending for a vehicle over a date range.
+ * Section E: Customer Spending for a vehicle over a date range, from the
+ * customer's perspective — what Maximo actually billed them:
+ *   contract (service) billing + WO billing split into labour, material, misc.
+ * Warranty claim (RP) WO bills are excluded; they are claimed from the OEM.
  * Cost per km uses the first and last gb_mileagereading on work orders
  * completed within the same period.
  */
@@ -21,39 +26,79 @@ export async function getSpendingData(
   startDate: Date,
   endDate: Date
 ): Promise<SpendingData> {
-  // Chargeable labor cost
-  const [labor] = await query<{ total: number }>(`
-    SELECT ISNULL(SUM(lt.linecost), 0) AS total
-    FROM labtrans lt
-    JOIN workorder w ON w.wonum = lt.refwo AND w.siteid = lt.siteid
-    WHERE lt.siteid = @siteId
-      AND w.assetnum = @assetnum
-      AND lt.gb_ischargeable = 1
-      AND lt.transdate >= @startDate
-      AND lt.transdate < @endDate
-  `, {
+  const params = {
     siteId: { type: sql.VarChar, value: config.siteId },
     assetnum: { type: sql.VarChar, value: assetnum },
     startDate: { type: sql.DateTime, value: startDate },
     endDate: { type: sql.DateTime, value: endDate },
-  });
+  };
 
-  // Material cost (issued items)
-  const [material] = await query<{ total: number }>(`
-    SELECT ISNULL(SUM(ABS(mt.linecost)), 0) AS total
-    FROM matusetrans mt
-    JOIN workorder w ON w.wonum = mt.refwo AND w.siteid = mt.siteid
-    WHERE mt.siteid = @siteId
-      AND w.assetnum = @assetnum
-      AND mt.issuetype = 'ISSUE'
-      AND mt.actualdate >= @startDate
-      AND mt.actualdate < @endDate
-  `, {
-    siteId: { type: sql.VarChar, value: config.siteId },
-    assetnum: { type: sql.VarChar, value: assetnum },
-    startDate: { type: sql.DateTime, value: startDate },
-    endDate: { type: sql.DateTime, value: endDate },
-  });
+  // Contract billing: billing-schedule lines (no WO) on the vehicle's agreements.
+  // Lines carry no asset, so each line is split evenly across the agreement's vehicles.
+  const [contract] = await query<{ total: number }>(`
+    WITH agreements AS (
+      SELECT ce.agreement, ce.orgid FROM caentitle ce
+      WHERE ce.siteid = @siteId AND ce.gb_vehiclenum = @assetnum
+      UNION
+      SELECT p.gb_agreement, p.orgid FROM pm p
+      WHERE p.siteid = @siteId AND p.assetnum = @assetnum AND p.gb_agreement IS NOT NULL
+    ),
+    fleet AS (
+      SELECT a.agreement, a.orgid, COUNT(DISTINCT v.assetnum) AS vehicles
+      FROM agreements a
+      CROSS APPLY (
+        SELECT ce.gb_vehiclenum AS assetnum FROM caentitle ce
+        WHERE ce.agreement = a.agreement AND ce.orgid = a.orgid
+        UNION
+        SELECT p.assetnum FROM pm p
+        WHERE p.gb_agreement = a.agreement AND p.orgid = a.orgid
+      ) v
+      GROUP BY a.agreement, a.orgid
+    )
+    SELECT ISNULL(SUM(bl.billedprice / f.vehicles), 0) AS total
+    FROM fleet f
+    JOIN pluspbillbatch bb ON bb.agreement = f.agreement AND bb.orgid = f.orgid
+    JOIN pluspbillline bl ON bl.billbatchnum = bb.billbatchnum AND bl.orgid = bb.orgid
+    WHERE bl.refwo IS NULL
+      AND bb.status = 'BILLED'
+      AND bb.statusdate >= @startDate
+      AND bb.statusdate < @endDate
+  `, params);
+
+  // WO billing: each bill line links to the transactions billed on it.
+  // Labour = labour transactions + "LABOUR CHARGES" fixed charges;
+  // Material = parts issued; Misc = vendor services (DDE) and other fixed charges.
+  const [wo] = await query<{ labor: number; material: number; misc: number }>(`
+    WITH lines AS (
+      SELECT bl.billbatchnum, bl.linenum, bl.orgid
+      FROM workorder w
+      JOIN pluspbillline bl ON bl.refwo = w.wonum AND bl.siteid = w.siteid
+      JOIN pluspbillbatch bb ON bb.billbatchnum = bl.billbatchnum AND bb.orgid = bl.orgid
+      WHERE w.siteid = @siteId
+        AND w.assetnum = @assetnum
+        AND bb.status = 'BILLED'
+        AND ISNULL(bl.gb_salestype, '') <> 'RP'
+        AND bb.statusdate >= @startDate
+        AND bb.statusdate < @endDate
+    )
+    SELECT
+      ISNULL(SUM(CASE
+        WHEN tr.ownertable = 'LABTRANS' THEN lt.pluspbillprice
+        WHEN tr.ownertable = 'PLUSPGBTRANS' AND g.description LIKE 'LABOUR%' THEN g.billprice
+      END), 0) AS labor,
+      ISNULL(SUM(CASE WHEN tr.ownertable = 'MATUSETRANS' THEN mt.pluspbillprice END), 0) AS material,
+      ISNULL(SUM(CASE
+        WHEN tr.ownertable = 'SERVRECTRANS' THEN st.pluspbillprice
+        WHEN tr.ownertable = 'PLUSPGBTRANS' AND ISNULL(g.description, '') NOT LIKE 'LABOUR%' THEN g.billprice
+      END), 0) AS misc
+    FROM lines l
+    JOIN pluspbilllinetr tr ON tr.billbatchnum = l.billbatchnum AND tr.linenum = l.linenum AND tr.orgid = l.orgid
+    LEFT JOIN labtrans lt ON tr.ownertable = 'LABTRANS' AND lt.labtransid = tr.ownerid
+    LEFT JOIN matusetrans mt ON tr.ownertable = 'MATUSETRANS' AND mt.matusetransid = tr.ownerid
+    LEFT JOIN servrectrans st ON tr.ownertable = 'SERVRECTRANS' AND st.servrectransid = tr.ownerid
+    LEFT JOIN pluspgbtrans g ON tr.ownertable = 'PLUSPGBTRANS' AND g.pluspgbtransid = tr.ownerid
+    OPTION (RECOMPILE) -- cached plan for these params ran >60s on GBITR01V; fresh plan ~3s
+  `, params);
 
   // Odometer readings from work orders completed within the period
   const readings = await query<{ mileage: number }>(`
@@ -66,16 +111,13 @@ export async function getSpendingData(
       AND actfinish >= @startDate
       AND actfinish < @endDate
     ORDER BY actfinish
-  `, {
-    siteId: { type: sql.VarChar, value: config.siteId },
-    assetnum: { type: sql.VarChar, value: assetnum },
-    startDate: { type: sql.DateTime, value: startDate },
-    endDate: { type: sql.DateTime, value: endDate },
-  });
+  `, params);
 
-  const laborCost = labor?.total ?? 0;
-  const materialCost = material?.total ?? 0;
-  const totalCost = laborCost + materialCost;
+  const contractBilling = contract?.total ?? 0;
+  const laborCost = wo?.labor ?? 0;
+  const materialCost = wo?.material ?? 0;
+  const miscCost = wo?.misc ?? 0;
+  const totalCost = contractBilling + laborCost + materialCost + miscCost;
 
   const { mileageStart, mileageEnd } = getMileageRange(readings.map((r) => r.mileage));
   const mileageDelta = (mileageStart !== null && mileageEnd !== null)
@@ -86,8 +128,10 @@ export async function getSpendingData(
     : null;
 
   return {
+    contractBilling: Math.round(contractBilling * 100) / 100,
     laborCost: Math.round(laborCost * 100) / 100,
     materialCost: Math.round(materialCost * 100) / 100,
+    miscCost: Math.round(miscCost * 100) / 100,
     totalCost: Math.round(totalCost * 100) / 100,
     mileageStart,
     mileageEnd,
