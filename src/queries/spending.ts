@@ -17,7 +17,8 @@ export interface SpendingData {
  * Section E: Customer Spending for a vehicle over a date range, from the
  * customer's perspective — what Maximo actually billed them:
  *   contract (service) billing + WO billing split into labour, material, misc.
- * Warranty claim (RP) WO bills are excluded; they are claimed from the OEM.
+ * Only WO bills invoiced to the customer (batch pre-tax total > 0) count;
+ * contract-covered (CM/PM/...) and warranty (RP) bills carry a zero total.
  * Cost per km uses the first and last gb_mileagereading on work orders
  * completed within the same period.
  */
@@ -65,7 +66,7 @@ export async function getSpendingData(
       AND bb.statusdate < @endDate
   `, params);
 
-  // WO billing: each bill line links to the transactions billed on it.
+  // WO billing: bill lines on batches invoiced to the customer; each links to the transactions billed on it.
   // Labour = labour transactions + "LABOUR CHARGES" fixed charges;
   // Material = parts issued; Misc = vendor services (DDE) and other fixed charges.
   const [wo] = await query<{ labor: number; material: number; misc: number }>(`
@@ -77,7 +78,7 @@ export async function getSpendingData(
       WHERE w.siteid = @siteId
         AND w.assetnum = @assetnum
         AND bb.status = 'BILLED'
-        AND ISNULL(bl.gb_salestype, '') <> 'RP'
+        AND bb.pretaxtotal > 0
         AND bb.statusdate >= @startDate
         AND bb.statusdate < @endDate
     )
